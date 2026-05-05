@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*" # triggers on e.g. v1.0.0, v1.2.3
+
+jobs:
+  build-dmg:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip3 install -r requirements.txt
+          pip3 install -r requirements-build.txt
+
+      - name: Generate icon
+        run: python3 app/assets/generate_icon.py
+
+      - name: Build .app
+        run: pyinstaller roulette.spec --noconfirm
+
+      - name: Package .dmg
+        run: |
+          APP_NAME="Roulette"
+          STAGING="dist/dmg_staging"
+          TEMP_DMG="dist/${APP_NAME}_tmp.dmg"
+          DMG_PATH="dist/${APP_NAME}.dmg"
+
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -R "dist/${APP_NAME}.app" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+
+          hdiutil create \
+            -volname "$APP_NAME" \
+            -srcfolder "$STAGING" \
+            -ov \
+            -format UDRW \
+            "$TEMP_DMG"
+
+          hdiutil convert "$TEMP_DMG" -format UDZO -o "$DMG_PATH"
+          rm -f "$TEMP_DMG"
+          rm -rf "$STAGING"
+
+      - name: Upload DMG to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Roulette.dmg
+          generate_release_notes: true

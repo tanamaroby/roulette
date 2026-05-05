@@ -23,11 +23,13 @@ app/
 │   ├── folder_manager.py    ← Persist folders to ~/.config/roulette/folders.json.
 │   │                           Extensible via MediaResolver base class.
 │   ├── playlist.py          ← Build + shuffle M3U playlists (PlaylistBuilder).
-│   └── player.py            ← MpvFlags dataclass + MpvPlayer subprocess launcher.
+│   ├── player.py            ← MpvFlags dataclass + MpvPlayer subprocess launcher.
+│   └── rule34_resolver.py   ← Rule34.xxx API resolver (MediaResolver subclass).
 └── ui/                      ← All PyQt6 code lives here.
     ├── main_window.py       ← QMainWindow. Owns layout, stylesheet, mpv lifecycle.
     └── widgets/
         ├── folder_list.py   ← FolderListWidget: drag-drop folder management.
+        ├── online_panel.py  ← OnlinePanel: Rule34.xxx fetch UI.
         └── settings_panel.py← SettingsPanel: maps UI controls → MpvFlags.
 ```
 
@@ -62,6 +64,7 @@ core never imports UI. All Qt-related code belongs in `app/ui/`.
 | Install mpv on Linux / Windows                 | Subclass `MpvInstaller` in `core/mpv_checker.py`; register in `_get_installer()`.                                                                              |
 | New online playlist type                       | Use `PlaylistBuilder` from `core/playlist.py` — it accepts any list of path/URI strings.                                                                       |
 | New UI panel / widget                          | Add to `app/ui/widgets/`; import in `main_window.py`; style via the single `_apply_stylesheet()` QSS block.                                                    |
+| New online source (e.g. YouTube)               | Subclass `MediaResolver` in `core/folder_manager.py`; add a resolver like `rule34_resolver.py`; wire a new tab/panel in `ui/`.                                 |
 
 ---
 
@@ -119,15 +122,36 @@ python3 -m app.main         # run directly from repo root
 
 # Syntax-check all modules
 python3 -m py_compile app/ui/main_window.py app/ui/widgets/settings_panel.py \
-    app/ui/widgets/folder_list.py app/core/mpv_checker.py \
-    app/core/folder_manager.py app/core/player.py app/core/playlist.py app/main.py
+    app/ui/widgets/folder_list.py app/ui/widgets/online_panel.py \
+    app/core/mpv_checker.py app/core/folder_manager.py \
+    app/core/player.py app/core/playlist.py \
+    app/core/rule34_resolver.py app/main.py
 
 # Regenerate icon (if deleted)
 python3 app/assets/generate_icon.py
 ```
 
-`requirements.txt` contains only: `PyQt6>=6.6.0`, `Pillow>=10.0.0`.
+`requirements.txt` contains only: `PyQt6>=6.6.0`, `Pillow>=10.0.0`.  
+`requirements-build.txt` contains: `pyinstaller>=6.0.0`.  
 mpv itself is installed via Homebrew at runtime if missing.
+
+---
+
+## Packaging
+
+Builds use **PyInstaller** + `hdiutil` to produce a self-contained `.dmg`.
+
+```bash
+./build_dmg.sh          # produces dist/Roulette.dmg
+```
+
+Key files:
+
+- `roulette.spec` — PyInstaller spec (assets, hidden imports, Info.plist)
+- `build_dmg.sh` — full build pipeline: PyInstaller → staging → DMG
+- `.github/workflows/release.yml` — CI: builds DMG on version tag push, uploads to GitHub Releases
+
+Do NOT embed mpv in the bundle — it is a Homebrew binary and is installed at runtime by `mpv_checker.py`.
 
 ---
 
