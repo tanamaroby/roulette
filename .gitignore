@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Generated assets
+app/assets/icon.png
+
+# App data
+~/.config/roulette/
+
+# Temp playlists
+roulette_*.m3u8
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# VS Code
+.vscode/
+
+# PyCharm / JetBrains
+.idea/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
