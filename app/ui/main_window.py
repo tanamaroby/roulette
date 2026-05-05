@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSplitter,
     QStatusBar,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -34,6 +35,7 @@ from app.core.mpv_checker import ensure_mpv, is_mpv_available
 from app.core.player import MpvPlayer
 from app.core.playlist import PlaylistBuilder
 from app.ui.widgets.folder_list import FolderListWidget
+from app.ui.widgets.online_panel import OnlinePanel
 from app.ui.widgets.settings_panel import SettingsPanel
 
 
@@ -61,14 +63,16 @@ class MainWindow(QMainWindow):
         self._player: MpvPlayer | None = None
         self._temp_playlist: str | None = None
         self._installer_thread: QThread | None = None
+        self._online_panel: OnlinePanel | None = None
+        self._left_tabs: QTabWidget | None = None
 
         self.setWindowTitle("Roulette — Media Shuffler")
-        self.setMinimumSize(1080, 680)
-        self.resize(1120, 720)
+        self.setMinimumSize(900, 900)
         self._set_icon()
         self._build_ui()
         self._apply_stylesheet()
         self._check_mpv_on_startup()
+        self.showMaximized()
 
     # ------------------------------------------------------------------
     # Icon
@@ -122,10 +126,19 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
 
-        # Left: folder list
+        # Left: tabbed source panel
+        self._left_tabs = QTabWidget()
+        self._left_tabs.setObjectName("sourceTabs")
+
         self._folder_list = FolderListWidget(self._folder_manager)
         self._folder_list.folders_changed.connect(self._on_folders_changed)
-        splitter.addWidget(self._folder_list)
+        self._left_tabs.addTab(self._folder_list, "  Folders  ")
+
+        self._online_panel = OnlinePanel()
+        self._online_panel.urls_changed.connect(self._refresh_count)
+        self._left_tabs.addTab(self._online_panel, "  Online  ")
+
+        splitter.addWidget(self._left_tabs)
 
         # Right: settings (scrollable)
         self._settings = SettingsPanel()
@@ -189,7 +202,7 @@ class MainWindow(QMainWindow):
         QMainWindow, QWidget {{
             background-color: #0d1117;
             color: #e2e8f0;
-            font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            font-family: ".AppleSystemUIFont", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
             font-size: 13px;
         }}
 
@@ -327,7 +340,7 @@ class MainWindow(QMainWindow):
             border-radius: 10px;
             margin-top: 20px;
             background-color: #0d1117;
-            padding-bottom: 4px;
+            padding-bottom: 16px;
         }}
         QGroupBox#settingsGroup::title {{
             subcontrol-origin: margin;
@@ -451,6 +464,102 @@ class MainWindow(QMainWindow):
             background-color: #1a2040;
             width: 1px;
         }}
+
+        /* ── Tab widget ───────────────────────────────────────────── */
+        QTabWidget#sourceTabs {{
+            border: none;
+        }}
+        QTabWidget#sourceTabs::pane {{
+            border: none;
+            background: transparent;
+            padding-top: 8px;
+        }}
+        QTabBar::tab {{
+            background: transparent;
+            color: #3d4a6e;
+            padding: 8px 20px;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }}
+        QTabBar::tab:selected {{
+            color: #a5b4fc;
+            border-bottom: 2px solid #6366f1;
+        }}
+        QTabBar::tab:hover:!selected {{
+            color: #64748b;
+        }}
+        QTabBar::tab:disabled {{
+            color: #1e2a4a;
+        }}
+
+        /* ── Online panel labels ──────────────────────────────────── */
+        QLabel#formLabel {{
+            color: #64748b;
+            font-size: 12px;
+        }}
+        QLabel#onlineStatusLabel {{
+            color: #6ee7b7;
+            font-size: 12px;
+            padding: 4px 0;
+        }}
+        QLabel#warnLabel {{
+            color: #78350f;
+            background-color: #1c0f00;
+            border: 1px solid #451a03;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 11px;
+        }}
+
+        /* ── Fetch + link buttons ─────────────────────────────────── */
+        QPushButton#fetchButton {{
+            background-color: #064e3b;
+            color: #6ee7b7;
+            border: 1px solid #065f46;
+            padding: 11px 0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }}
+        QPushButton#fetchButton:hover {{
+            background-color: #065f46;
+            border-color: #10b981;
+        }}
+        QPushButton#fetchButton:pressed {{ background-color: #047857; }}
+        QPushButton#fetchButton:disabled {{
+            color: #1e2a4a;
+            background-color: #0a1520;
+            border-color: #111827;
+        }}
+
+        QPushButton#linkButton {{
+            color: #6366f1;
+            background: transparent;
+            border: none;
+            text-align: left;
+            padding: 0;
+            font-size: 12px;
+        }}
+        QPushButton#linkButton:hover {{ color: #a5b4fc; }}
+
+        /* ── SpinBox (online panel) ───────────────────────────────── */
+        QSpinBox {{
+            background-color: #111827;
+            border: 1px solid #1e2a4a;
+            border-radius: 7px;
+            padding: 7px 10px;
+            color: #e2e8f0;
+            min-height: 32px;
+        }}
+        QSpinBox:focus {{ border-color: #4f46e5; }}
+        QSpinBox::up-button, QSpinBox::down-button {{
+            width: 20px;
+            border: none;
+            background: transparent;
+        }}
         """)
 
     # ------------------------------------------------------------------
@@ -515,21 +624,40 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "mpv Not Ready", "mpv is not available yet.")
             return
 
-        files = self._folder_manager.resolve_all_media()
-        if not files:
-            QMessageBox.information(
-                self, "No Media Found",
-                "No supported media files were found in the saved folders.\n"
-                "Add at least one folder containing video or audio files."
-            )
-            return
+        active_tab = self._left_tabs.currentIndex() if self._left_tabs else 0
+        if active_tab == 1:
+            # Online tab: use only fetched URLs
+            online_urls = self._online_panel.get_urls() if self._online_panel else []
+            all_items = online_urls
+            if not all_items:
+                QMessageBox.information(
+                    self, "No Media Found",
+                    "No online content fetched yet.\n\n"
+                    "Enter your credentials and click Fetch in the Online tab."
+                )
+                return
+        else:
+            # Folders tab: use only local files
+            all_items = self._folder_manager.resolve_all_media()
+            if not all_items:
+                if not self._folder_manager.folders:
+                    msg = (
+                        "No media found.\n\n"
+                        'Add a folder using the "Add Folder" button, then click Play.'
+                    )
+                else:
+                    msg = (
+                        "No playable media found.\n\n"
+                        "Check that your folders contain video or audio files."
+                    )
+                QMessageBox.information(self, "No Media Found", msg)
+                return
 
         flags = self._settings.get_flags()
-        builder = PlaylistBuilder(files)
+        builder = PlaylistBuilder(all_items)
         if flags.shuffle:
             builder.shuffle()
 
-        # Write temp playlist
         self._cleanup_temp()
         self._temp_playlist = builder.write_temp_m3u()
 
@@ -542,7 +670,10 @@ class MainWindow(QMainWindow):
 
         self._play_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
-        self._status.showMessage(f"Playing {len(builder)} file(s) via mpv…")
+        source_label = "online" if active_tab == 1 else "local"
+        self._status.showMessage(
+            f"Playing {len(builder)} {source_label} item(s) via mpv…"
+        )
 
     def _on_stop(self) -> None:
         if self._player:
@@ -577,9 +708,18 @@ class MainWindow(QMainWindow):
         self._refresh_count()
 
     def _refresh_count(self) -> None:
-        files = self._folder_manager.resolve_all_media()
-        n = len(files)
-        self._count_lbl.setText(f"{n} file{'s' if n != 1 else ''} found")
+        local_n = len(self._folder_manager.resolve_all_media())
+        online_n = len(self._online_panel.get_urls()) if self._online_panel else 0
+        total = local_n + online_n
+        parts: list[str] = []
+        if local_n:
+            parts.append(f"{local_n} local")
+        if online_n:
+            parts.append(f"{online_n} online")
+        if parts:
+            self._count_lbl.setText(f"{total} item{'s' if total != 1 else ''} ({', '.join(parts)})")
+        else:
+            self._count_lbl.setText("0 items found")
 
     # ------------------------------------------------------------------
     # Cleanup
