@@ -1,0 +1,159 @@
+"""
+folder_manager.py
+-----------------
+Persists the user's saved media folders and resolves them to lists of
+media file paths.
+
+Storage
+~~~~~~~
+Saved folders are written to ``~/.config/roulette/folders.json``.
+
+Extensibility note
+~~~~~~~~~~~~~~~~~~
+``MediaResolver`` is the single point for deciding which files count as
+"media".  Swap or subclass it to add online-source resolvers in the future.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Iterator
+
+# ---------------------------------------------------------------------------
+# Supported extensions
+# ---------------------------------------------------------------------------
+
+VIDEO_EXTENSIONS: frozenset[str] = frozenset(
+    {".mkv", ".mp4", ".avi", ".mov", ".webm", ".flv", ".m4v", ".wmv", ".ts",
+     ".m2ts", ".mpg", ".mpeg", ".ogv", ".3gp", ".divx", ".rm", ".rmvb"}
+)
+
+AUDIO_EXTENSIONS: frozenset[str] = frozenset(
+    {".mp3", ".flac", ".aac", ".ogg", ".wav", ".m4a", ".opus", ".wma"}
+)
+
+ALL_MEDIA_EXTENSIONS: frozenset[str] = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
+
+# ---------------------------------------------------------------------------
+# Config path
+# ---------------------------------------------------------------------------
+
+_CONFIG_DIR = Path.home() / ".config" / "roulette"
+_FOLDERS_FILE = _CONFIG_DIR / "folders.json"
+
+
+# ---------------------------------------------------------------------------
+# Folder manager
+# ---------------------------------------------------------------------------
+
+class FolderManager:
+    """
+    Manages a persistent list of media source folders.
+    """
+
+    def __init__(self) -> None:
+        self._folders: list[str] = []
+        self._load()
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def _load(self) -> None:
+        if _FOLDERS_FILE.exists():
+            try:
+                data = json.loads(_FOLDERS_FILE.read_text(encoding="utf-8"))
+                self._folders = [f for f in data.get("folders", []) if os.path.isdir(f)]
+            except (json.JSONDecodeError, OSError):
+                self._folders = []
+
+    def save(self) -> None:
+        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        _FOLDERS_FILE.write_text(
+            json.dumps({"folders": self._folders}, indent=2),
+            encoding="utf-8",
+        )
+
+    # ------------------------------------------------------------------
+    # CRUD
+    # ------------------------------------------------------------------
+
+    @property
+    def folders(self) -> list[str]:
+        return list(self._folders)
+
+    def add_folder(self, path: str) -> bool:
+        """Add a folder. Returns False if already present or not a directory."""
+        path = str(Path(path).resolve())
+        if not os.path.isdir(path):
+            return False
+        if path not in self._folders:
+            self._folders.append(path)
+            self.save()
+        return True
+
+    def remove_folder(self, path: str) -> None:
+        path = str(Path(path).resolve())
+        self._folders = [f for f in self._folders if f != path]
+        self.save()
+
+    def clear(self) -> None:
+        self._folders.clear()
+        self.save()
+
+    # ------------------------------------------------------------------
+    # Media resolution
+    # ------------------------------------------------------------------
+
+    def resolve_all_media(
+        self,
+        extensions: frozenset[str] = ALL_MEDIA_EXTENSIONS,
+        recursive: bool = True,
+    ) -> list[str]:
+        """
+        Return a flat list of all media files found across all saved folders.
+        """
+        resolver = LocalMediaResolver(extensions=extensions, recursive=recursive)
+        files: list[str] = []
+        for folder in self._folders:
+            files.extend(resolver.resolve(folder))
+        return files
+
+
+# ---------------------------------------------------------------------------
+# Media resolver abstraction (extensible)
+# ---------------------------------------------------------------------------
+
+class MediaResolver:
+    """
+    Base class for resolving a source into a list of playable paths/URIs.
+
+    Subclass this to support new sources (e.g. YouTube playlists, network
+    shares, streaming services).
+    """
+
+    def resolve(self, source: str) -> list[str]:
+        raise NotImplementedError
+
+
+class LocalMediaResolver(MediaResolver):
+    """Resolves a local directory to a list of media file paths."""
+
+    def __init__(
+        self,
+        extensions: frozenset[str] = ALL_MEDIA_EXTENSIONS,
+        recursive: bool = True,
+    ) -> None:
+        self.extensions = extensions
+        self.recursive = recursive
+
+    def resolve(self, source: str) -> list[str]:
+        root = Path(source)
+        if not root.is_dir():
+            return []
+        iterator: Iterator[Path] = root.rglob("*") if self.recursive else root.iterdir()
+        return sorted(
+            str(p) for p in iterator
+            if p.is_file() and p.suffix.lower() in self.extensions
+        )
