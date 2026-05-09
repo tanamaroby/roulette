@@ -1,13 +1,15 @@
 # Roulette 🎲
 
-**Roulette** is a modern macOS media-shuffler built on top of [mpv](https://mpv.io/).  
+**Roulette** is a modern macOS and Windows media-shuffler built on top of [mpv](https://mpv.io/).  
 Add folders, hit Play, and let it shuffle everything — fullscreen, looping forever, no fuss.
 
 ---
 
 ## Installation
 
-### Option A — Download the .dmg (recommended)
+### macOS
+
+#### Option A — Download the .dmg (recommended)
 
 1. Go to the [**Releases**](../../releases/latest) page and download `Roulette.dmg`.
 2. Open the `.dmg`, drag **Roulette** into **Applications**.
@@ -16,7 +18,7 @@ Add folders, hit Play, and let it shuffle everything — fullscreen, looping for
 > **Gatekeeper warning:** Because the app is unsigned, macOS may block it on first open.  
 > Right-click → **Open** → **Open** to allow it once — you won't be asked again.
 
-### Option B — Run from source
+#### Option B — Run from source (macOS)
 
 ```bash
 # 1. Clone
@@ -31,14 +33,55 @@ cd roulette
 
 ---
 
-## Building the .dmg yourself
+### Windows
+
+#### Option A — Download the ZIP (recommended)
+
+1. Go to the [**Releases**](../../releases/latest) page and download `Roulette-Windows.zip`.
+2. Extract the ZIP anywhere (e.g. `C:\Program Files\Roulette`).
+3. Run `Roulette\Roulette.exe`.
+4. On first run, Roulette will install **mpv** automatically via **winget** (Windows Package Manager, included with Windows 10 1709+ and Windows 11).
+
+> **SmartScreen warning:** Because the executable is unsigned, Windows may show a "Windows protected your PC" prompt.  
+> Click **More info** → **Run anyway** to launch it.
+
+#### Option B — Run from source (Windows)
+
+```powershell
+# 1. Clone
+git clone https://github.com/your-username/roulette.git
+cd roulette
+
+# 2. Create venv and install deps
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# 3. Run
+python -m app.main
+```
+
+> Requires Python 3.9+ and mpv on PATH (or let the app install it via winget on first launch).
+
+---
+
+## Building yourself
+
+### Build the macOS .dmg
 
 ```bash
 ./build_dmg.sh
 # Output: dist/Roulette.dmg
 ```
 
-Requires PyInstaller (`pip3 install pyinstaller` or via `requirements-build.txt`).
+### Build the Windows ZIP
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build_windows.ps1
+# Output: dist\Roulette-Windows.zip
+```
+
+Both require PyInstaller (`pip install pyinstaller` or via `requirements-build.txt`).
 
 ---
 
@@ -57,7 +100,8 @@ Requires PyInstaller (`pip3 install pyinstaller` or via `requirements-build.txt`
 | Raw mpv flag passthrough | Supported |
 | Drag-and-drop folder import | ✅ |
 | Online media via Rule34.xxx API | ✅ |
-| Auto-install mpv via Homebrew | ✅ |
+| Auto-install mpv via Homebrew (macOS) | ✅ |
+| Auto-install mpv via winget (Windows) | ✅ |
 
 Supported media formats: `.mkv` `.mp4` `.avi` `.mov` `.webm` `.flv` `.m4v` `.wmv` `.ts` `.m2ts` `.mpg` `.mpeg` `.ogv` `.3gp` `.divx` `.rm` `.rmvb` `.mp3` `.flac` `.aac` `.ogg` `.wav` `.m4a` `.opus` `.wma`
 
@@ -108,8 +152,9 @@ roulette/
 │           ├── folder_list.py      ← drag-drop folder list widget
 │           ├── online_panel.py     ← Rule34.xxx fetch UI
 │           └── settings_panel.py  ← mpv flags UI
-├── roulette.spec                   ← PyInstaller build spec
-├── build_dmg.sh                    ← builds Roulette.app + .dmg
+├── roulette.spec                   ← PyInstaller build spec (macOS + Windows)
+├── build_dmg.sh                    ← builds Roulette.app + .dmg (macOS)
+├── build_windows.ps1               ← builds Roulette-Windows.zip (Windows)
 ├── requirements.txt                ← runtime deps
 ├── requirements-build.txt          ← build-only deps (pyinstaller)
 ├── run.sh
@@ -133,7 +178,7 @@ roulette/
 3. Surface a new UI widget to accept URLs/playlist IDs.  
 4. Pass the resolved URIs to `PlaylistBuilder` as usual.
 
-### Add a Linux / Windows installer
+### Add a Linux installer
 
 Subclass `MpvInstaller` in [app/core/mpv_checker.py](app/core/mpv_checker.py) and register it in `_get_installer()`.
 

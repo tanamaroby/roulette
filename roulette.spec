@@ -2,14 +2,21 @@
 """
 PyInstaller spec for Roulette.
 Build with:  pyinstaller roulette.spec
-Output:      dist/Roulette.app
+Output (macOS):   dist/Roulette.app
+Output (Windows): dist/Roulette/   (directory bundle)
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 ROOT = Path(SPECPATH)
 ASSETS = ROOT / "app" / "assets"
+
+# Use .ico on Windows if available, otherwise fall back to .png
+_ico = ASSETS / "icon.ico"
+_png = ASSETS / "icon.png"
+_icon_file = str(_ico) if sys.platform == "win32" and _ico.exists() else str(_png)
 
 a = Analysis(
     [str(ROOT / "app" / "main.py")],
@@ -55,7 +62,7 @@ exe = EXE(
     target_arch=None,      # native arch of the build machine
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(ASSETS / "icon.png"),
+    icon=_icon_file,
 )
 
 coll = COLLECT(
@@ -68,17 +75,19 @@ coll = COLLECT(
     name="Roulette",
 )
 
-app = BUNDLE(
-    coll,
-    name="Roulette.app",
-    icon=str(ASSETS / "icon.png"),
-    bundle_identifier="com.roulette.app",
-    info_plist={
-        "CFBundleDisplayName": "Roulette",
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "1",
-        "NSHighResolutionCapable": True,
-        "NSRequiresAquaSystemAppearance": False,   # allow dark mode
-        "LSMinimumSystemVersion": "12.0",
-    },
-)
+# macOS-only: wrap in .app bundle
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="Roulette.app",
+        icon=str(_png),
+        bundle_identifier="com.roulette.app",
+        info_plist={
+            "CFBundleDisplayName": "Roulette",
+            "CFBundleShortVersionString": "1.1.0",
+            "CFBundleVersion": "2",
+            "NSHighResolutionCapable": True,
+            "NSRequiresAquaSystemAppearance": False,   # allow dark mode
+            "LSMinimumSystemVersion": "12.0",
+        },
+    )

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Roulette is a macOS media-shuffler UI built with **Python 3.9+ / PyQt6** that launches
+Roulette is a **macOS and Windows** media-shuffler UI built with **Python 3.9+ / PyQt6** that launches
 **mpv** (the command-line media player) as a subprocess. The codebase is intentionally
 thin: the UI orchestrates, the core layer does work, and mpv handles all actual playback.
 
@@ -14,7 +14,7 @@ thin: the UI orchestrates, the core layer does work, and mpv handles all actual 
 app/
 ├── main.py                  ← Entry point. Generates icon, starts QApplication.
 ├── assets/
-│   ├── generate_icon.py     ← Pillow script. Run once; produces icon.png.
+│   ├── generate_icon.py     ← Pillow script. Run once; produces icon.png + icon.ico.
 │   ├── icon.png             ← Auto-generated. Do NOT commit (in .gitignore).
 │   ├── toggle_on.svg        ← Checkbox toggle images (referenced by QSS).
 │   └── toggle_off.svg
@@ -45,8 +45,9 @@ core never imports UI. All Qt-related code belongs in `app/ui/`.
 - **Full type annotations** on every function signature — parameters and return type.
 - **Private helpers** are prefixed with a single underscore (`_build_ui`, `_on_play`).
   Double-underscore name-mangling is not used.
-- **No bare `python` or `pip` calls** in scripts or docs — always `python3` / `pip3` since
-  macOS does not provide a `python` symlink by default.
+- **No bare `python` or `pip` calls** in shell scripts or macOS docs — always `python3` / `pip3`
+  since macOS does not provide a `python` symlink by default. PowerShell scripts for Windows may
+  use `python` / `pip` as that is standard on Windows.
 - **String quoting:** use single-quoted strings when the content contains double-quotes
   (e.g. `'Click "Add Folder"'`). Do not use Unicode smart-quotes (`"…"`) inside any
   Python string literal — they cause `SyntaxError` on Python 3.9.
@@ -61,7 +62,7 @@ core never imports UI. All Qt-related code belongs in `app/ui/`.
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New mpv flag                                   | Add field to `MpvFlags` in `core/player.py`; map it in `_build_args()`; add widget in `ui/widgets/settings_panel.py` and update `get_flags()` / `set_flags()`. |
 | New media source (e.g. YouTube, network share) | Subclass `MediaResolver` in `core/folder_manager.py`; implement `resolve(source) -> list[str]`; wire a new UI widget.                                          |
-| Install mpv on Linux / Windows                 | Subclass `MpvInstaller` in `core/mpv_checker.py`; register in `_get_installer()`.                                                                              |
+| Install mpv on Linux                           | Subclass `MpvInstaller` in `core/mpv_checker.py`; register in `_get_installer()`.                                                                              |
 | New online playlist type                       | Use `PlaylistBuilder` from `core/playlist.py` — it accepts any list of path/URI strings.                                                                       |
 | New UI panel / widget                          | Add to `app/ui/widgets/`; import in `main_window.py`; style via the single `_apply_stylesheet()` QSS block.                                                    |
 | New online source (e.g. YouTube)               | Subclass `MediaResolver` in `core/folder_manager.py`; add a resolver like `rule34_resolver.py`; wire a new tab/panel in `ui/`.                                 |
@@ -133,11 +134,13 @@ python3 app/assets/generate_icon.py
 
 `requirements.txt` contains only: `PyQt6>=6.6.0`, `Pillow>=10.0.0`.  
 `requirements-build.txt` contains: `pyinstaller>=6.0.0`.  
-mpv itself is installed via Homebrew at runtime if missing.
+mpv itself is installed at runtime — via Homebrew on macOS, via winget on Windows.
 
 ---
 
 ## Packaging
+
+### macOS
 
 Builds use **PyInstaller** + `hdiutil` to produce a self-contained `.dmg`.
 
@@ -145,13 +148,23 @@ Builds use **PyInstaller** + `hdiutil` to produce a self-contained `.dmg`.
 ./build_dmg.sh          # produces dist/Roulette.dmg
 ```
 
+### Windows
+
+Builds use **PyInstaller** to produce a directory bundle, then zip it.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build_windows.ps1
+# produces dist\Roulette-Windows.zip
+```
+
 Key files:
 
-- `roulette.spec` — PyInstaller spec (assets, hidden imports, Info.plist)
-- `build_dmg.sh` — full build pipeline: PyInstaller → staging → DMG
-- `.github/workflows/release.yml` — CI: builds DMG on version tag push, uploads to GitHub Releases
+- `roulette.spec` — single PyInstaller spec for both platforms; wraps in `.app` on macOS only
+- `build_dmg.sh` — macOS build pipeline: PyInstaller → staging → DMG
+- `build_windows.ps1` — Windows build pipeline: PyInstaller → ZIP
+- `.github/workflows/release.yml` — CI: builds DMG (macos-latest) + ZIP (windows-latest) on version tag push, uploads both to GitHub Releases
 
-Do NOT embed mpv in the bundle — it is a Homebrew binary and is installed at runtime by `mpv_checker.py`.
+Do NOT embed mpv in the bundle — it is installed at runtime by `mpv_checker.py`.
 
 ---
 

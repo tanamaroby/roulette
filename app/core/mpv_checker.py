@@ -107,10 +107,43 @@ class _HomebrewInstaller(MpvInstaller):
         return shutil.which("brew")
 
 
+class _WingetInstaller(MpvInstaller):
+    """Install mpv via winget on Windows (Windows 10 1709+ / Windows 11)."""
+
+    def install(self, progress_callback=None) -> bool:
+        winget = shutil.which("winget")
+        if winget is None:
+            _log(
+                progress_callback,
+                "winget not found. Please install mpv manually from https://mpv.io/installation/",
+            )
+            return False
+
+        _log(progress_callback, "Installing mpv via winget…")
+        result = subprocess.run(
+            [winget, "install", "--id", "mpv.mpv", "-e", "--silent"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            _log(progress_callback, "mpv installed successfully.")
+            return True
+
+        # winget may return non-zero if already installed; check PATH again
+        if shutil.which("mpv") is not None:
+            _log(progress_callback, "mpv is already available.")
+            return True
+
+        _log(progress_callback, f"winget install failed:\n{result.stderr.strip()}")
+        return False
+
+
 def _get_installer() -> MpvInstaller | None:
     if sys.platform == "darwin":
         return _HomebrewInstaller()
-    # Future: add _AptInstaller, _WingetInstaller, etc.
+    if sys.platform == "win32":
+        return _WingetInstaller()
+    # Future: add _AptInstaller for Linux, etc.
     return None
 
 

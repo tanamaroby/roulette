@@ -1,5 +1,5 @@
 """
-Generates the application icon (icon.png) using Pillow.
+Generates the application icon (icon.png and icon.ico) using Pillow.
 Run once: python app/assets/generate_icon.py
 """
 import math
@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 SIZE = 512
 OUT = os.path.join(os.path.dirname(__file__), "icon.png")
+OUT_ICO = os.path.join(os.path.dirname(__file__), "icon.ico")
 
 
 def _draw_play_triangle(draw: ImageDraw.ImageDraw, cx: float, cy: float, r: float, color: tuple) -> None:
@@ -71,6 +72,18 @@ def generate(path: str = OUT) -> None:
 
     img.save(path, "PNG")
     print(f"Icon saved → {path}")
+
+    # Also generate .ico (Windows) next to the .png
+    ico_path = os.path.splitext(path)[0] + ".ico"
+    sizes = [256, 128, 64, 48, 32, 16]
+    ico_images = [img.resize((s, s), Image.LANCZOS) for s in sizes]
+    ico_images[0].save(
+        ico_path,
+        format="ICO",
+        sizes=[(s, s) for s in sizes],
+        append_images=ico_images[1:],
+    )
+    print(f"Icon saved → {ico_path}")
 
 
 if __name__ == "__main__":
