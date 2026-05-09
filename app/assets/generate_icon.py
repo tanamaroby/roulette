@@ -47,7 +47,7 @@ def generate(path: str = OUT) -> None:
     img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Background circle — deep navy gradient approximated by two ellipses
+    # Background circle - deep navy gradient approximated by two ellipses
     bg_outer = (15, 18, 40, 255)
     bg_inner = (30, 35, 75, 255)
     draw.ellipse([0, 0, SIZE, SIZE], fill=bg_outer)
