@@ -3,10 +3,10 @@ online_panel.py
 ---------------
 UI panel for fetching media from online sources.
 
-Currently supports: rule34.xxx (via Rule34Resolver).
+Currently supports: R4 (via R4Resolver).
 
 Credentials (user_id + api_key) are persisted to
-~/.config/roulette/rule34.json so the user only types them once.
+~/.config/roulette/r4.json so the user only types them once.
 """
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from app.core.rule34_resolver import Rule34Resolver
+from app.core.r4_resolver import R4Resolver
 
-_CREDS_FILE = Path.home() / ".config" / "roulette" / "rule34.json"
+_CREDS_FILE = Path.home() / ".config" / "roulette" / "r4.json"
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ class _FetchWorker(QObject):
         self._api_key = api_key
 
     def run(self) -> None:
-        resolver = Rule34Resolver(
+        resolver = R4Resolver(
             tags=self._tags,
             max_results=self._max,
             user_id=self._user_id,
@@ -65,7 +65,7 @@ class _FetchWorker(QObject):
 
 class OnlinePanel(QWidget):
     """
-    Lets the user configure and fetch from rule34.xxx.
+    Lets the user configure and fetch from R4.
     Call ``get_urls()`` to retrieve the last fetched list.
     """
 
@@ -96,7 +96,7 @@ class OnlinePanel(QWidget):
         root.setSpacing(16)
 
         # ── Credentials ────────────────────────────────────────────────
-        cred_group = QGroupBox("Rule34.xxx Authentication")
+        cred_group = QGroupBox("R4 Authentication")
         cred_group.setObjectName("settingsGroup")
         cred_layout = QVBoxLayout(cred_group)
         cred_layout.setContentsMargins(16, 24, 16, 16)
@@ -183,7 +183,7 @@ class OnlinePanel(QWidget):
         root.addWidget(q_group)
 
         # ── Fetch button ───────────────────────────────────────────────
-        self._fetch_btn = QPushButton("↓  Fetch from Rule34.xxx")
+        self._fetch_btn = QPushButton("↓  Fetch from R4")
         self._fetch_btn.setObjectName("fetchButton")
         self._fetch_btn.clicked.connect(self._on_fetch)
         root.addWidget(self._fetch_btn)
@@ -265,7 +265,7 @@ class OnlinePanel(QWidget):
         self._fetch_btn.setEnabled(False)
         self._fetch_btn.setText("Fetching…")
         self._urls = []
-        self._status_lbl.setText("Connecting to rule34.xxx…")
+        self._status_lbl.setText("Connecting…")
 
         self._thread = QThread()
         self._worker = _FetchWorker(
@@ -288,5 +288,5 @@ class OnlinePanel(QWidget):
                 "No videos found. Try different tags, or check your credentials."
             )
         self._fetch_btn.setEnabled(True)
-        self._fetch_btn.setText("\u2193  Fetch from Rule34.xxx")
+        self._fetch_btn.setText("\u2193  Fetch from R4")
         self.urls_changed.emit()

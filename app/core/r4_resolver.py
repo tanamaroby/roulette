@@ -1,17 +1,15 @@
 """
-rule34_resolver.py
-------------------
-Resolves rule34.xxx tag searches into direct video URLs using the
-public JSON API (https://api.rule34.xxx).
+r4_resolver.py
+---------------
+Resolves tag searches into direct video URLs using a public JSON API.
 
 API authentication
 ~~~~~~~~~~~~~~~~~~
-A free API key is required. Obtain one at:
-  https://rule34.xxx/index.php?page=account&s=options
+A free API key is required — click "Get API key →" in the Online tab.
 
 Extensibility note
 ~~~~~~~~~~~~~~~~~~
-``Rule34Resolver`` subclasses ``MediaResolver`` — it slots into
+``R4Resolver`` subclasses ``MediaResolver`` — it slots into
 ``PlaylistBuilder`` the same way local folder results do.
 """
 from __future__ import annotations
@@ -24,27 +22,27 @@ from typing import Callable
 from app.core.folder_manager import MediaResolver
 
 _API_BASE = "https://api.rule34.xxx/index.php"
-_PAGE_LIMIT = 100          # rule34 hard-caps at 1 000; 100 is safe and polite
+_PAGE_LIMIT = 100          # hard-caps at 1 000; 100 is safe and polite
 _VIDEO_EXTS = frozenset({".mp4", ".webm", ".mkv", ".mov", ".avi", ".flv"})
 _UA = "Roulette-MediaShuffler/1.0"
 
 
-class Rule34Resolver(MediaResolver):
+class R4Resolver(MediaResolver):
     """
-    Fetches posts from rule34.xxx matching ``tags`` and returns the
-    highest-quality direct ``file_url`` for every video post found.
+    Fetches posts matching ``tags`` and returns the highest-quality
+    direct ``file_url`` for every video post found.
 
     Parameters
     ----------
     tags:
-        Space-separated rule34 tags (supports all meta-tags and
-        operators, e.g. ``video score:>100 order:score``).
+        Space-separated tags (supports all meta-tags and operators,
+        e.g. ``video score:>100 order:score``).
     max_results:
         Upper bound on the number of video URLs returned (≤ 1 000).
     user_id:
-        Numeric account ID (shown on the rule34.xxx account page).
+        Numeric account ID (shown on the account page).
     api_key:
-        API key obtained from https://rule34.xxx/index.php?page=account&s=options
+        API key obtained from the account settings page.
     progress_callback:
         Optional callable(str) for status messages (used by the UI).
     """

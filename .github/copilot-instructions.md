@@ -24,12 +24,12 @@ app/
 │   │                           Extensible via MediaResolver base class.
 │   ├── playlist.py          ← Build + shuffle M3U playlists (PlaylistBuilder).
 │   ├── player.py            ← MpvFlags dataclass + MpvPlayer subprocess launcher.
-│   └── rule34_resolver.py   ← Rule34.xxx API resolver (MediaResolver subclass).
+│   └── r4_resolver.py       ← R4 API resolver (MediaResolver subclass).
 └── ui/                      ← All PyQt6 code lives here.
     ├── main_window.py       ← QMainWindow. Owns layout, stylesheet, mpv lifecycle.
     └── widgets/
         ├── folder_list.py   ← FolderListWidget: drag-drop folder management.
-        ├── online_panel.py  ← OnlinePanel: Rule34.xxx fetch UI.
+        ├── online_panel.py  ← OnlinePanel: R4 fetch UI.
         └── settings_panel.py← SettingsPanel: maps UI controls → MpvFlags.
 ```
 
@@ -65,7 +65,7 @@ core never imports UI. All Qt-related code belongs in `app/ui/`.
 | Install mpv on Linux                           | Subclass `MpvInstaller` in `core/mpv_checker.py`; register in `_get_installer()`.                                                                              |
 | New online playlist type                       | Use `PlaylistBuilder` from `core/playlist.py` — it accepts any list of path/URI strings.                                                                       |
 | New UI panel / widget                          | Add to `app/ui/widgets/`; import in `main_window.py`; style via the single `_apply_stylesheet()` QSS block.                                                    |
-| New online source (e.g. YouTube)               | Subclass `MediaResolver` in `core/folder_manager.py`; add a resolver like `rule34_resolver.py`; wire a new tab/panel in `ui/`.                                 |
+| New online source (e.g. YouTube)               | Subclass `MediaResolver` in `core/folder_manager.py`; add a resolver like `r4_resolver.py`; wire a new tab/panel in `ui/`.                                     |
 
 ---
 
@@ -126,7 +126,7 @@ python3 -m py_compile app/ui/main_window.py app/ui/widgets/settings_panel.py \
     app/ui/widgets/folder_list.py app/ui/widgets/online_panel.py \
     app/core/mpv_checker.py app/core/folder_manager.py \
     app/core/player.py app/core/playlist.py \
-    app/core/rule34_resolver.py app/main.py
+    app/core/r4_resolver.py app/main.py
 
 # Regenerate icon (if deleted)
 python3 app/assets/generate_icon.py

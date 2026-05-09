@@ -99,7 +99,7 @@ Both require PyInstaller (`pip install pyinstaller` or via `requirements-build.t
 | Always-on-top / borderless window | Toggleable |
 | Raw mpv flag passthrough | Supported |
 | Drag-and-drop folder import | ✅ |
-| Online media via Rule34.xxx API | ✅ |
+| Online media via R4 API | ✅ |
 | Auto-install mpv via Homebrew (macOS) | ✅ |
 | Auto-install mpv via winget (Windows) | ✅ |
 
@@ -121,7 +121,7 @@ Supported media formats: `.mkv` `.mp4` `.avi` `.mov` `.webm` `.flv` `.m4v` `.wmv
 ## Usage
 
 1. **Folders tab** — click **+ Add Folder** (or drag folders onto the list) to register media directories, then click **▶ Play**.
-2. **Online tab** — enter your Rule34.xxx User ID and API key, set tags, click **Fetch**, then **▶ Play**.
+2. **Online tab** — enter your R4 User ID and API key, set tags, click **Fetch**, then **▶ Play**.
 3. Adjust playback settings in the right panel — all changes take effect on next play.
 4. Click **⏹ Stop** to terminate mpv at any time.
 
@@ -145,12 +145,12 @@ roulette/
 │   │   ├── folder_manager.py       ← persist & resolve media folders
 │   │   ├── playlist.py             ← build & shuffle M3U playlists
 │   │   ├── player.py               ← MpvFlags dataclass + subprocess launch
-│   │   └── rule34_resolver.py      ← Rule34.xxx API media resolver
+│   │   └── r4_resolver.py          ← R4 API media resolver
 │   └── ui/
 │       ├── main_window.py          ← QMainWindow
 │       └── widgets/
 │           ├── folder_list.py      ← drag-drop folder list widget
-│           ├── online_panel.py     ← Rule34.xxx fetch UI
+│           ├── online_panel.py     ← R4 fetch UI
 │           └── settings_panel.py  ← mpv flags UI
 ├── roulette.spec                   ← PyInstaller build spec (macOS + Windows)
 ├── build_dmg.sh                    ← builds Roulette.app + .dmg (macOS)
