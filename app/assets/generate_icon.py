@@ -83,7 +83,7 @@ def generate(path: str = OUT) -> None:
         sizes=[(s, s) for s in sizes],
         append_images=ico_images[1:],
     )
-    print(f"Icon saved → {ico_path}")
+    print(f"Icon saved -> {ico_path}")
 
 
 if __name__ == "__main__":
