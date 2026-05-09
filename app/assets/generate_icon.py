@@ -71,7 +71,7 @@ def generate(path: str = OUT) -> None:
     _draw_shuffle_arrows(draw, cx, cy + r * 0.42, r * 0.55, (150, 153, 255, 220))
 
     img.save(path, "PNG")
-    print(f"Icon saved → {path}")
+    print(f"Icon saved -> {path}")
 
     # Also generate .ico (Windows) next to the .png
     ico_path = os.path.splitext(path)[0] + ".ico"
