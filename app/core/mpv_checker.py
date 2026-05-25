@@ -11,10 +11,31 @@ To support Linux or Windows, subclass ``MpvInstaller`` and register it in
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 from abc import ABC, abstractmethod
+from pathlib import Path
+
+# Common install locations that macOS .app bundles do not include in PATH.
+_EXTRA_DIRS: list[str] = [
+    "/usr/local/bin",       # Homebrew on Intel
+    "/opt/homebrew/bin",    # Homebrew on Apple Silicon
+    "/opt/local/bin",       # MacPorts
+]
+
+
+def _which_extended(name: str) -> str | None:
+    """Like shutil.which but also probes _EXTRA_DIRS as fallback."""
+    found = shutil.which(name)
+    if found:
+        return found
+    for directory in _EXTRA_DIRS:
+        candidate = Path(directory) / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -22,8 +43,8 @@ from abc import ABC, abstractmethod
 # ---------------------------------------------------------------------------
 
 def is_mpv_available() -> bool:
-    """Return True if mpv is on the PATH and executable."""
-    return shutil.which("mpv") is not None
+    """Return True if mpv is on the PATH (or a known install location) and executable."""
+    return _which_extended("mpv") is not None
 
 
 def ensure_mpv(progress_callback=None) -> bool:
@@ -54,7 +75,7 @@ def ensure_mpv(progress_callback=None) -> bool:
 
 def get_mpv_path() -> str | None:
     """Return the absolute path to the mpv binary, or None."""
-    return shutil.which("mpv")
+    return _which_extended("mpv")
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +91,7 @@ class _HomebrewInstaller(MpvInstaller):
     """Install mpv via Homebrew on macOS."""
 
     def install(self, progress_callback=None) -> bool:
-        brew = shutil.which("brew")
+        brew = _which_extended("brew")
         if brew is None:
             _log(progress_callback, "Homebrew not found. Installing Homebrew first…")
             brew = self._install_homebrew(progress_callback)
@@ -104,7 +125,7 @@ class _HomebrewInstaller(MpvInstaller):
         result = subprocess.run(install_cmd, shell=True, capture_output=True, text=True)
         if result.returncode != 0:
             return None
-        return shutil.which("brew")
+        return _which_extended("brew")
 
 
 class _WingetInstaller(MpvInstaller):
