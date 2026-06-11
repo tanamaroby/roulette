@@ -24,7 +24,7 @@ fi
 
 # ── 2. Build .app with PyInstaller ──────────────────────────────────────────
 echo "→ Building ${APP_NAME}.app…"
-pyinstaller roulette.spec --noconfirm
+python3 -m PyInstaller roulette.spec --noconfirm
 
 # ── 3. Package into .dmg ────────────────────────────────────────────────────
 echo "→ Creating ${DMG_NAME}…"
