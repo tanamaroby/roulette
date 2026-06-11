@@ -61,6 +61,10 @@ class MpvFlags:
     # Extra raw flags (list of "--flag=value" or "--flag" strings)
     extra_flags: list[str] = field(default_factory=list)
 
+    # Download support (set programmatically — not exposed in the UI)
+    ipc_socket_path: str = ""              # --input-ipc-server
+    script_paths: list[str] = field(default_factory=list)  # --script=
+
 
 # ---------------------------------------------------------------------------
 # Player
@@ -159,6 +163,12 @@ class MpvPlayer:
 
         # Raw extra flags (user-defined)
         args.extend(f.extra_flags)
+
+        # IPC socket and Lua scripts (download support)
+        if f.ipc_socket_path:
+            args.append(f"--input-ipc-server={f.ipc_socket_path}")
+        for sp in f.script_paths:
+            args.append(f"--script={sp}")
 
         # Playlist file must come last
         args.append(f"--playlist={playlist_path}")

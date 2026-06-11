@@ -16,6 +16,7 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QThread, QUrl, Qt, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
+    QFileDialog,
     QFormLayout,
     QFrame,
     QGroupBox,
@@ -82,6 +83,10 @@ class OnlinePanel(QWidget):
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def get_download_folder(self) -> str:
+        """Return the configured download folder path (may be empty)."""
+        return self._dl_folder_input.text().strip()
 
     def get_urls(self) -> list[str]:
         return list(self._urls)
@@ -182,6 +187,74 @@ class OnlinePanel(QWidget):
         q_layout.addWidget(tag_hint)
         root.addWidget(q_group)
 
+        # -- Search cheatsheet ------------------------------------------------
+        cheat_group = QGroupBox("R34 Search Cheatsheet")
+        cheat_group.setObjectName("settingsGroup")
+        cheat_layout = QVBoxLayout(cheat_group)
+        cheat_layout.setContentsMargins(16, 24, 16, 16)
+        cheat_layout.setSpacing(10)
+
+        cheat_intro = QLabel(
+            "Combine plain tags with meta-tags. Everything is space-separated."
+        )
+        cheat_intro.setObjectName("hintLabel")
+        cheat_intro.setWordWrap(True)
+        cheat_layout.addWidget(cheat_intro)
+
+        cheat_lines = [
+            "Required tags: catgirl video",
+            "Exclude tags: -male -scat -gore",
+            "Any of several tags: ~(catgirl bunnygirl foxgirl)",
+            "Score filter: score:>100  score:<500",
+            "Rating filter: rating:s  rating:q  rating:e",
+            "Sort order: order:score  order:date  order:random",
+            "Limit to videos: video",
+        ]
+        for line in cheat_lines:
+            row = QLabel(f"- {line}")
+            row.setObjectName("hintLabel")
+            row.setWordWrap(True)
+            cheat_layout.addWidget(row)
+
+        cheat_examples = QLabel(
+            "Examples:\n"
+            "video rating:e score:>250 order:score -loli\n"
+            "video ~(tag1 tag2) -tag3 order:date"
+        )
+        cheat_examples.setObjectName("hintLabel")
+        cheat_examples.setWordWrap(True)
+        cheat_layout.addWidget(cheat_examples)
+        root.addWidget(cheat_group)
+
+        # ── Download folder ────────────────────────────────────────────
+        dl_group = QGroupBox("Download Folder")
+        dl_group.setObjectName("settingsGroup")
+        dl_layout = QVBoxLayout(dl_group)
+        dl_layout.setContentsMargins(16, 24, 16, 16)
+        dl_layout.setSpacing(12)
+
+        dl_row = QHBoxLayout()
+        dl_row.setSpacing(10)
+        self._dl_folder_input = QLineEdit()
+        self._dl_folder_input.setPlaceholderText("No folder selected — downloads disabled")
+        self._dl_folder_input.setReadOnly(True)
+        dl_row.addWidget(self._dl_folder_input)
+        choose_btn = QPushButton("Choose…")
+        choose_btn.setObjectName("chooseButton")
+        choose_btn.setFixedWidth(90)
+        choose_btn.clicked.connect(self._on_choose_folder)
+        dl_row.addWidget(choose_btn)
+        dl_layout.addLayout(dl_row)
+
+        dl_hint = QLabel(
+            "Press \u24d3 while a video is playing in mpv to save it here."
+            "  Existing files are replaced."
+        )
+        dl_hint.setObjectName("hintLabel")
+        dl_hint.setWordWrap(True)
+        dl_layout.addWidget(dl_hint)
+        root.addWidget(dl_group)
+
         # ── Fetch button ───────────────────────────────────────────────
         self._fetch_btn = QPushButton("↓  Fetch from R4")
         self._fetch_btn.setObjectName("fetchButton")
@@ -221,6 +294,7 @@ class OnlinePanel(QWidget):
             self._key_input.setText(data.get("api_key", ""))
             self._tags_input.setText(data.get("last_tags", "video"))
             self._max_spin.setValue(int(data.get("max_results", 200)))
+            self._dl_folder_input.setText(data.get("download_folder", ""))
         except (json.JSONDecodeError, OSError, ValueError):
             pass
 
@@ -233,11 +307,25 @@ class OnlinePanel(QWidget):
                     "api_key": self._key_input.text().strip(),
                     "last_tags": self._tags_input.text().strip(),
                     "max_results": self._max_spin.value(),
+                    "download_folder": self._dl_folder_input.text().strip(),
                 },
                 indent=2,
             ),
             encoding="utf-8",
         )
+
+    # ------------------------------------------------------------------
+    # Download folder
+    # ------------------------------------------------------------------
+
+    def _on_choose_folder(self) -> None:
+        start = self._dl_folder_input.text().strip() or str(Path.home())
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Download Folder", start
+        )
+        if folder:
+            self._dl_folder_input.setText(folder)
+            self._save_creds()
 
     # ------------------------------------------------------------------
     # Fetch

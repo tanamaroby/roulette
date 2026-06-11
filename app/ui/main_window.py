@@ -11,6 +11,10 @@ Layout (left | right split):
 from __future__ import annotations
 
 import os
+import sys
+import threading
+import time
+import uuid
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
@@ -30,13 +34,48 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from app.core.downloader import DownloadItem, Downloader
 from app.core.folder_manager import FolderManager
 from app.core.mpv_checker import ensure_mpv, is_mpv_available
+from app.core.mpv_ipc import MpvIpc
 from app.core.player import MpvPlayer
 from app.core.playlist import PlaylistBuilder
+from app.ui.widgets.download_queue import DownloadQueueDialog
 from app.ui.widgets.folder_list import FolderListWidget
 from app.ui.widgets.online_panel import OnlinePanel
 from app.ui.widgets.settings_panel import SettingsPanel
+
+
+# ---------------------------------------------------------------------------
+# Download Lua script generator
+# ---------------------------------------------------------------------------
+
+def _make_dl_script(request_file: str) -> str:
+    """Return a Lua script string that binds D to queue a download."""
+    lua_path = request_file.replace("\\", "\\\\")
+    return (
+        'local req_file = "' + lua_path + '"\n'
+        'mp.add_key_binding("d", "roulette-dl", function()\n'
+        '    local path = mp.get_property("path")\n'
+        '    if not path then return end\n'
+        '    local f = io.open(req_file, "w")\n'
+        '    if f then\n'
+        '        f:write(path)\n'
+        '        f:close()\n'
+        '        mp.osd_message("\xe2\xac\x87  Download queued", 2)\n'
+        '    end\n'
+        'end)\n'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Download notifier (thread-safe Qt signals)
+# ---------------------------------------------------------------------------
+
+class _DownloadNotifier(QObject):
+    done = pyqtSignal(str)            # str(dest Path)
+    error = pyqtSignal(str)           # error message
+    queue_changed = pyqtSignal(list)  # list[DownloadItem]
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +104,16 @@ class MainWindow(QMainWindow):
         self._installer_thread: QThread | None = None
         self._online_panel: OnlinePanel | None = None
         self._left_tabs: QTabWidget | None = None
+
+        # Download support
+        self._dl_notifier = _DownloadNotifier()
+        self._dl_notifier.done.connect(self._on_download_done)
+        self._dl_notifier.error.connect(self._on_download_error)
+        self._dl_notifier.queue_changed.connect(self._on_queue_changed)
+        self._monitor_stop: threading.Event | None = None
+        self._dl_script_path: str | None = None
+        self._dl_request_path: str | None = None
+        self._dl_dialog: DownloadQueueDialog | None = None
 
         self.setWindowTitle("Roulette — Media Shuffler")
         self.setMinimumSize(900, 900)
@@ -166,6 +215,12 @@ class MainWindow(QMainWindow):
         self._count_lbl.setObjectName("countLabel")
         bar.addWidget(self._count_lbl)
         bar.addStretch()
+
+        self._dl_badge_btn = QPushButton("⬇  Downloads")
+        self._dl_badge_btn.setObjectName("dlBadgeButton")
+        self._dl_badge_btn.setVisible(False)
+        self._dl_badge_btn.clicked.connect(self._on_show_queue)
+        bar.addWidget(self._dl_badge_btn)
 
         self._stop_btn = QPushButton("⏹  Stop")
         self._stop_btn.setObjectName("stopButton")
@@ -545,6 +600,38 @@ class MainWindow(QMainWindow):
         }}
         QPushButton#linkButton:hover {{ color: #a5b4fc; }}
 
+        /* ── Choose folder button (online panel) ─────────────────── */
+        QPushButton#chooseButton {{
+            background-color: #1e2a4a;
+            color: #a5b4fc;
+            border: 1px solid #2d3561;
+            padding: 7px 14px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 600;
+        }}
+        QPushButton#chooseButton:hover {{
+            background-color: #2d3561;
+            border-color: #4f46e5;
+        }}
+        QPushButton#chooseButton:pressed {{ background-color: #0f152a; }}
+
+        /* ── Download badge button ────────────────────────────────── */
+        QPushButton#dlBadgeButton {{
+            background-color: #1c1040;
+            color: #a5b4fc;
+            border: 1px solid #312e81;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+        }}
+        QPushButton#dlBadgeButton:hover {{
+            background-color: #231a5e;
+            border-color: #4f46e5;
+        }}
+        QPushButton#dlBadgeButton:pressed {{ background-color: #0f0a2a; }}
+
         /* ── SpinBox (online panel) ───────────────────────────────── */
         QSpinBox {{
             background-color: #111827;
@@ -659,7 +746,41 @@ class MainWindow(QMainWindow):
             builder.shuffle()
 
         self._cleanup_temp()
+        self._stop_download_monitor()
         self._temp_playlist = builder.write_temp_m3u()
+
+        # ── Download support for online content ────────────────────────
+        dl_folder = (
+            self._online_panel.get_download_folder()
+            if (active_tab == 1 and self._online_panel)
+            else ""
+        )
+        if dl_folder:
+            uid = uuid.uuid4().hex
+            ipc_path = (
+                f"/tmp/roulette-mpv-{uid}.sock"
+                if sys.platform != "win32"
+                else ""
+            )
+            req_path = (
+                Path(os.environ.get("TEMP", "/tmp"))
+                / f"roulette-dl-{uid}.txt"
+            )
+            script_path = (
+                Path(os.environ.get("TEMP", "/tmp"))
+                / f"roulette-script-{uid}.lua"
+            )
+            try:
+                script_path.write_text(
+                    _make_dl_script(str(req_path)), encoding="utf-8"
+                )
+                flags.script_paths = [str(script_path)]
+                self._dl_script_path = str(script_path)
+                self._dl_request_path = str(req_path)
+                if ipc_path:
+                    flags.ipc_socket_path = ipc_path
+            except OSError:
+                dl_folder = ""   # skip download support on failure
 
         self._player = MpvPlayer(flags=flags, on_exit=self._on_playback_ended)
         try:
@@ -668,12 +789,103 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Launch Error", str(exc))
             return
 
+        if dl_folder and self._dl_request_path:
+            self._start_download_monitor(
+                self._dl_request_path,
+                flags.ipc_socket_path,
+                dl_folder,
+            )
+
         self._play_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
         source_label = "online" if active_tab == 1 else "local"
+        dl_hint = "  (D to download)" if dl_folder else ""
         self._status.showMessage(
-            f"Playing {len(builder)} {source_label} item(s) via mpv…"
+            f"Playing {len(builder)} {source_label} item(s) via mpv\u2026{dl_hint}"
         )
+
+    def _start_download_monitor(
+        self,
+        request_file: str,
+        ipc_socket_path: str,
+        download_folder: str,
+    ) -> None:
+        self._monitor_stop = threading.Event()
+        stop = self._monitor_stop
+        notifier = self._dl_notifier
+
+        def _run() -> None:
+            ipc = MpvIpc(ipc_socket_path)
+            ipc.connect()
+            dl = Downloader(
+                download_folder,
+                on_queue_changed=notifier.queue_changed.emit,
+            )
+
+            while not stop.is_set():
+                rp = Path(request_file)
+                if rp.exists():
+                    try:
+                        url = rp.read_text(encoding="utf-8").strip()
+                        rp.unlink(missing_ok=True)
+                    except OSError:
+                        url = ""
+                    if url:
+                        ipc.show_osd("\u2b07  Downloading\u2026", 5000)
+
+                        def _done(p: Path, _ipc: MpvIpc = ipc) -> None:
+                            notifier.done.emit(str(p))
+                            _ipc.show_osd(f"\u2713  Saved: {p.name}", 4000)
+
+                        def _err(e: str, _ipc: MpvIpc = ipc) -> None:
+                            notifier.error.emit(e)
+                            _ipc.show_osd("\u2717  Download failed", 4000)
+
+                        dl.start(url, on_done=_done, on_error=_err)
+                time.sleep(0.5)
+
+            ipc.close()
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _stop_download_monitor(self) -> None:
+        if self._monitor_stop:
+            self._monitor_stop.set()
+            self._monitor_stop = None
+        for attr in ("_dl_script_path", "_dl_request_path"):
+            p = getattr(self, attr, None)
+            if p:
+                try:
+                    Path(p).unlink(missing_ok=True)
+                except OSError:
+                    pass
+                setattr(self, attr, None)
+
+    def _on_download_done(self, path_str: str) -> None:
+        self._status.showMessage(f"\u2713  Saved: {path_str}")
+        self._status.setToolTip(path_str)
+
+    def _on_download_error(self, msg: str) -> None:
+        self._status.showMessage(f"\u2717  Download failed: {msg}")
+
+    def _on_queue_changed(self, queue: list) -> None:
+        active = sum(
+            1 for i in queue
+            if i.state.name in ("QUEUED", "DOWNLOADING")
+        )
+        if active:
+            self._dl_badge_btn.setText(f"\u2b07  Downloads ({active})")
+        else:
+            self._dl_badge_btn.setText("\u2b07  Downloads")
+        self._dl_badge_btn.setVisible(True)
+        if self._dl_dialog:
+            self._dl_dialog.refresh(queue)
+
+    def _on_show_queue(self) -> None:
+        if self._dl_dialog is None:
+            self._dl_dialog = DownloadQueueDialog(self)
+        self._dl_dialog.show()
+        self._dl_dialog.raise_()
 
     def _on_stop(self) -> None:
         if self._player:
@@ -690,7 +902,12 @@ class MainWindow(QMainWindow):
         self._play_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
         self._status.showMessage("Ready.")
+        self._status.setToolTip("")
         self._cleanup_temp()
+        self._stop_download_monitor()
+        # Keep the badge visible so the user can review the completed queue,
+        # but drop the active-count suffix since nothing is in-flight.
+        # The button stays hidden if it was never shown (no downloads happened).
 
     def _cleanup_temp(self) -> None:
         if self._temp_playlist and os.path.exists(self._temp_playlist):
@@ -728,5 +945,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         if self._player:
             self._player.stop()
+        self._stop_download_monitor()
         self._cleanup_temp()
         super().closeEvent(event)
