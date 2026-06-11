@@ -14,7 +14,7 @@ DMG_PATH="dist/${DMG_NAME}"
 
 # ── 1. Ensure build deps ────────────────────────────────────────────────────
 echo "→ Installing build dependencies…"
-pip3 install --quiet pyinstaller
+python3 -m pip install --quiet -r requirements.txt -r requirements-build.txt
 
 # Ensure the icon exists before building
 if [[ ! -f "app/assets/icon.png" ]]; then
