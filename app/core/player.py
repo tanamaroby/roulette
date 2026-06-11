@@ -40,7 +40,7 @@ class MpvFlags:
     fullscreen: bool = True
     shuffle: bool = True
     loop_playlist: str = "inf"        # "inf" | "no" | "force" | int str
-    loop_file: str = "no"             # "inf" | "no" | int str
+    loop_file: str = "inf"            # "inf" | "no" | int str
 
     # Playback
     volume: int = 100                 # 0–130

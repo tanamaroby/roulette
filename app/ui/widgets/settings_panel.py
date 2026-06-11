@@ -66,7 +66,7 @@ class SettingsPanel(QWidget):
 
         self.cmb_loop_file = QComboBox()
         self.cmb_loop_file.addItems(["no", "inf (loop single file)"])
-        self.cmb_loop_file.setCurrentIndex(0)
+        self.cmb_loop_file.setCurrentIndex(1)
         pb_form.addRow("Loop File", self.cmb_loop_file)
 
         self.spn_volume = QSlider(Qt.Orientation.Horizontal)
@@ -166,7 +166,7 @@ class SettingsPanel(QWidget):
         if idx >= 0:
             self.cmb_loop_playlist.setCurrentIndex(idx)
         loop_file_text = {"no": "no", "inf": "inf (loop single file)"}
-        idx2 = self.cmb_loop_file.findText(loop_file_text.get(flags.loop_file, "no"))
+        idx2 = self.cmb_loop_file.findText(loop_file_text.get(flags.loop_file, "inf (loop single file)"))
         if idx2 >= 0:
             self.cmb_loop_file.setCurrentIndex(idx2)
         self.spn_volume.setValue(flags.volume)

@@ -72,6 +72,7 @@ class FolderListWidget(QWidget):
         self._list.setObjectName("folderList")
         self._list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self._list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._list.itemChanged.connect(self._on_item_changed)
         layout.addWidget(self._list)
 
         hint = QLabel('Drag & drop folders here, or click "Add Folder"')
@@ -97,9 +98,27 @@ class FolderListWidget(QWidget):
         self.folders_changed.emit()
 
     def _refresh(self) -> None:
+        self._list.blockSignals(True)
         self._list.clear()
         for folder in self._fm.folders:
-            self._list.addItem(QListWidgetItem(folder))
+            item = QListWidgetItem(folder)
+            item.setFlags(
+                Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsSelectable
+                | Qt.ItemFlag.ItemIsUserCheckable
+            )
+            item.setCheckState(
+                Qt.CheckState.Checked if self._fm.is_included(folder) else Qt.CheckState.Unchecked
+            )
+            self._list.addItem(item)
+        self._list.blockSignals(False)
+
+    def _on_item_changed(self, item: QListWidgetItem) -> None:
+        self._fm.set_folder_included(
+            item.text(),
+            item.checkState() == Qt.CheckState.Checked,
+        )
+        self.folders_changed.emit()
 
     # ------------------------------------------------------------------
     # Drag & drop

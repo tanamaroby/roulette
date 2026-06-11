@@ -648,7 +648,7 @@ class MainWindow(QMainWindow):
                 else:
                     msg = (
                         "No playable media found.\n\n"
-                        "Check that your folders contain video or audio files."
+                        "Check that your folders contain video or audio files, or re-enable one of the folders."
                     )
                 QMessageBox.information(self, "No Media Found", msg)
                 return

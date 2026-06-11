@@ -53,7 +53,7 @@ class FolderManager:
     """
 
     def __init__(self) -> None:
-        self._folders: list[str] = []
+        self._folders: list[dict[str, object]] = []
         self._load()
 
     # ------------------------------------------------------------------
@@ -64,9 +64,32 @@ class FolderManager:
         if _FOLDERS_FILE.exists():
             try:
                 data = json.loads(_FOLDERS_FILE.read_text(encoding="utf-8"))
-                self._folders = [f for f in data.get("folders", []) if os.path.isdir(f)]
+                self._folders = self._normalize_folders(data.get("folders", []))
             except (json.JSONDecodeError, OSError):
                 self._folders = []
+
+    def _normalize_folders(self, folders: object) -> list[dict[str, object]]:
+        normalized: list[dict[str, object]] = []
+        if not isinstance(folders, list):
+            return normalized
+
+        for entry in folders:
+            if isinstance(entry, str):
+                path = str(Path(entry).resolve())
+                include = True
+            elif isinstance(entry, dict):
+                raw_path = entry.get("path")
+                if not isinstance(raw_path, str):
+                    continue
+                path = str(Path(raw_path).resolve())
+                include = bool(entry.get("include", True))
+            else:
+                continue
+
+            if os.path.isdir(path):
+                normalized.append({"path": path, "include": include})
+
+        return normalized
 
     def save(self) -> None:
         _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,21 +104,41 @@ class FolderManager:
 
     @property
     def folders(self) -> list[str]:
-        return list(self._folders)
+        return [entry["path"] for entry in self._folders]
 
-    def add_folder(self, path: str) -> bool:
+    @property
+    def enabled_folders(self) -> list[str]:
+        return [entry["path"] for entry in self._folders if entry.get("include", True)]
+
+    def is_included(self, path: str) -> bool:
+        path = str(Path(path).resolve())
+        for entry in self._folders:
+            if entry["path"] == path:
+                return bool(entry.get("include", True))
+        return True
+
+    def add_folder(self, path: str, include: bool = True) -> bool:
         """Add a folder. Returns False if already present or not a directory."""
         path = str(Path(path).resolve())
         if not os.path.isdir(path):
             return False
-        if path not in self._folders:
-            self._folders.append(path)
+        if path not in self.folders:
+            self._folders.append({"path": path, "include": include})
             self.save()
         return True
 
     def remove_folder(self, path: str) -> None:
         path = str(Path(path).resolve())
-        self._folders = [f for f in self._folders if f != path]
+        self._folders = [entry for entry in self._folders if entry["path"] != path]
+        self.save()
+
+    def set_folder_included(self, path: str, include: bool) -> None:
+        path = str(Path(path).resolve())
+        for entry in self._folders:
+            if entry["path"] == path:
+                entry["include"] = include
+                self.save()
+                return
         self.save()
 
     def clear(self) -> None:
@@ -110,14 +153,16 @@ class FolderManager:
         self,
         extensions: frozenset[str] = ALL_MEDIA_EXTENSIONS,
         recursive: bool = True,
+        include_disabled: bool = False,
     ) -> list[str]:
         """
-        Return a flat list of all media files found across all saved folders.
+        Return a flat list of all media files found across saved folders.
         """
         resolver = LocalMediaResolver(extensions=extensions, recursive=recursive)
         files: list[str] = []
-        for folder in self._folders:
-            files.extend(resolver.resolve(folder))
+        folders = self._folders if include_disabled else [entry for entry in self._folders if entry.get("include", True)]
+        for folder in folders:
+            files.extend(resolver.resolve(folder["path"]))
         return files
 
 
