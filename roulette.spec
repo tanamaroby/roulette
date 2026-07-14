@@ -84,8 +84,8 @@ if sys.platform == "darwin":
         bundle_identifier="com.roulette.app",
         info_plist={
             "CFBundleDisplayName": "Roulette",
-            "CFBundleShortVersionString": "1.1.0",
-            "CFBundleVersion": "2",
+            "CFBundleShortVersionString": "1.3.0",
+            "CFBundleVersion": "3",
             "NSHighResolutionCapable": True,
             "NSRequiresAquaSystemAppearance": False,   # allow dark mode
             "LSMinimumSystemVersion": "12.0",
